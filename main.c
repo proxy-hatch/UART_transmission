@@ -126,7 +126,7 @@ struct uart_data {
         wait_queue_head_t readable, writeable;
         struct tasklet_struct uart_tasklet;
         void __iomem *base_addr;
-        unsigned long mem_start;    
+        unsigned long mem_start;
         unsigned long mem_end;
         unsigned int baud;
         unsigned int irq;
@@ -162,13 +162,18 @@ static void uart_received(char data)
 static void uart_send(char data)
 {
     // ***** Finish me by adding stuff here!
+
+	// put data into the out_fifo
+	//kfifo_in(&uart->out_fifo, &data,sizeof(data));
+	iowrite32(data, uart->base_addr + UART_THR_OFFSET);
+	wake_up_interruptible(&uart->writeable);
 }
 
 // returns a truth value indicating whether the UART is ready to transmit another byte of data
 static inline u32 tx_ready(void)
 {
     // ***** Finish me by adding stuff here!
-	return 0;
+	return ioread32(uart->base_addr + UART_LSR_OFFSET) & UART_LSR_TX_BUFFER_EMPTY;
 }
 
 // returns a truth value indicating whether or not data is ready to be received from the UART
@@ -182,8 +187,15 @@ static inline u32 rx_ready(void)
 // used in tasklet_init(&uart->uart_tasklet, uart_tasklet_func, (unsigned long)uart);
 static void uart_tasklet_func(unsigned long d) {
         struct uart_data *uart = (void *)d;
+			if (tx_ready() && !kfifo_is_empty(&uart->out_fifo) ) {
 
-        // ***** Finish me by adding stuff here!
+				printk(KERN_ALERT "inside ready of %s\n", __func__);
+				char data;
+				while (tx_ready()) {
+					kfifo_out(&uart->out_fifo, &data, sizeof(data));
+					uart_send(data);
+				}
+			}
 
         printk(KERN_ALERT "end of %s\n", __func__);
 }
@@ -365,10 +377,10 @@ static struct uart_data *uart_data_init(void)
         mutex_init(&uart->read_lock);
         mutex_init(&uart->write_lock);
         // the tasklet is scheduled two places in the code with a function called tasklet_schedule
-        // One use of a tasklet is to allow one to defer execution from the immediate servicing of a particular interrupt, 
-        // for example to allow other interrupts to get time on the processor.  
+        // One use of a tasklet is to allow one to defer execution from the immediate servicing of a particular interrupt,
+        // for example to allow other interrupts to get time on the processor.
         // To simplify thinking, you can think of scheduling a tasklet to be similar to simply calling a tasklet.
-        // The difference is that with scheduling a tasklet the call might not happen immediately, 
+        // The difference is that with scheduling a tasklet the call might not happen immediately,
         // like would be the case with a simple function call to the tasklet function.
         tasklet_init(&uart->uart_tasklet,
                         uart_tasklet_func, (unsigned long)uart);
