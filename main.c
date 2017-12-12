@@ -162,9 +162,7 @@ static void uart_received(char data)
 static void uart_send(char data)
 {
     // ***** Finish me by adding stuff here!
-
-	// put data into the out_fifo
-	//kfifo_in(&uart->out_fifo, &data,sizeof(data));
+	// Write data to the hardware register
 	iowrite32(data, uart->base_addr + UART_THR_OFFSET);
 	wake_up_interruptible(&uart->writeable);
 }
@@ -187,15 +185,15 @@ static inline u32 rx_ready(void)
 // used in tasklet_init(&uart->uart_tasklet, uart_tasklet_func, (unsigned long)uart);
 static void uart_tasklet_func(unsigned long d) {
         struct uart_data *uart = (void *)d;
-			if (tx_ready() && !kfifo_is_empty(&uart->out_fifo) ) {
-
-				printk(KERN_ALERT "inside ready of %s\n", __func__);
-				char data;
-				while (tx_ready()) {
-					kfifo_out(&uart->out_fifo, &data, sizeof(data));
-					uart_send(data);
-				}
-			}
+	
+	// ***** Finish me by adding stuff here!
+	if (tx_ready() && !kfifo_is_empty(&uart->out_fifo) ) {
+		char data;
+		while (tx_ready()) {
+			kfifo_out(&uart->out_fifo, &data, sizeof(data));
+			uart_send(data);
+		}
+	}
 
         printk(KERN_ALERT "end of %s\n", __func__);
 }
